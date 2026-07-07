@@ -49,30 +49,33 @@ const server = http.createServer((req, res) => {
         try {
           const parsed = JSON.parse(body);
           
-          // Busca recursiva pelas chaves base64, filename e extension (case-insensitive)
-          const found = {};
-          function search(current) {
-            if (!current || typeof current !== 'object') return;
-            for (const key of Object.keys(current)) {
-              const lowerKey = key.toLowerCase();
-              if (lowerKey === 'base64' && !found.base64) {
-                found.base64 = current[key];
-              } else if ((lowerKey === 'filename' || lowerKey === 'file-name') && !found.filename) {
-                found.filename = current[key];
-              } else if ((lowerKey === 'extension' || lowerKey === 'ext') && !found.extension) {
-                found.extension = current[key];
+          // Primeiro verifica a raiz (formato simples)
+          if (parsed.base64) base64String = parsed.base64;
+          if (parsed.filename) filename = parsed.filename;
+          if (parsed.extension) customExtension = parsed.extension.replace(/^\./, '');
+          
+          // Se não encontrou na raiz ou o nome for o padrão, faz busca recursiva por chaves aninhadas
+          if (!base64String || filename === 'arquivo_extraido') {
+            const found = {};
+            function search(current) {
+              if (!current || typeof current !== 'object') return;
+              for (const key of Object.keys(current)) {
+                const lowerKey = key.toLowerCase();
+                if (lowerKey === 'base64' && !found.base64) {
+                  found.base64 = current[key];
+                } else if ((lowerKey === 'filename' || lowerKey === 'file-name') && !found.filename) {
+                  found.filename = current[key];
+                } else if ((lowerKey === 'extension' || lowerKey === 'ext') && !found.extension) {
+                  found.extension = current[key];
+                }
+                search(current[key]);
               }
-              search(current[key]);
             }
-          }
-          search(parsed);
+            search(parsed);
 
-          base64String = found.base64 || parsed.base64 || parsed.data || '';
-          if (found.filename) {
-            filename = found.filename;
-          }
-          if (found.extension) {
-            customExtension = found.extension.replace(/^\./, '');
+            if (!base64String) base64String = found.base64 || '';
+            if (filename === 'arquivo_extraido' && found.filename) filename = found.filename;
+            if (!customExtension && found.extension) customExtension = found.extension.replace(/^\./, '');
           }
         } catch (e) {
           // Se não for JSON, assume que o corpo é o próprio Base64 puro
@@ -104,8 +107,8 @@ const server = http.createServer((req, res) => {
         res.statusCode = 200;
         res.setHeader('Content-Type', fileBuffer.mimeType || 'application/octet-stream');
         
-        // Define cabeçalhos de Content-Disposition seguindo múltiplos padrões da RFC e headers alternativos
-        res.setHeader('Content-Disposition', `attachment; filename="${finalFilename}"; filename*=UTF-8''${encodeURIComponent(finalFilename)}`);
+        // Define cabeçalho Content-Disposition de forma simples (padrão mais compatível com o Bubble.io)
+        res.setHeader('Content-Disposition', `attachment; filename="${finalFilename}"`);
         res.setHeader('X-Filename', finalFilename);
         res.setHeader('X-File-Name', finalFilename);
         res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, X-Filename, X-File-Name');
