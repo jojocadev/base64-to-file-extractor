@@ -42,11 +42,26 @@ const server = http.createServer((req, res) => {
     req.on('end', () => {
       try {
         let base64String = '';
+        let filename = 'arquivo_extraido';
+        let customExtension = null;
         
         // Tenta parsear como JSON
         try {
           const parsed = JSON.parse(body);
-          base64String = parsed.base64 || parsed.data || '';
+          
+          // Caso A: Formato aninhado com Escola.File
+          if (parsed.Escola && parsed.Escola.File) {
+            base64String = parsed.Escola.File.base64 || '';
+            if (parsed.Escola.File.filename) {
+              filename = parsed.Escola.File.filename;
+            }
+            if (parsed.Escola.File.extension) {
+              customExtension = parsed.Escola.File.extension.replace(/^\./, '');
+            }
+          } else {
+            // Caso B: Formatos anteriores compatíveis (base64 ou data na raiz)
+            base64String = parsed.base64 || parsed.data || '';
+          }
         } catch (e) {
           // Se não for JSON, assume que o corpo é o próprio Base64 puro
           base64String = body.trim();
@@ -56,7 +71,7 @@ const server = http.createServer((req, res) => {
           res.statusCode = 400;
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
           res.end(JSON.stringify({ 
-            error: 'Nenhuma string Base64 informada. Envie no formato JSON {"base64": "..."} ou como texto no corpo da requisição.' 
+            error: 'Nenhuma string Base64 informada. Envie no formato JSON esperado ou como texto no corpo da requisição.' 
           }));
           return;
         }
@@ -64,16 +79,25 @@ const server = http.createServer((req, res) => {
         // Decodifica a string usando nossa biblioteca utilitária nativa
         const fileBuffer = base64ToPdf(base64String);
 
-        // Configura cabeçalhos de resposta para download binário
+        // Define a extensão final (usa a customizada se veio no JSON, senão a detectada)
+        const finalExtension = customExtension || fileBuffer.extension || 'bin';
+
+        // Garante que o nome do arquivo tenha a extensão correta
+        let finalFilename = filename;
+        if (finalExtension && !finalFilename.toLowerCase().endsWith('.' + finalExtension.toLowerCase())) {
+          finalFilename = `${finalFilename}.${finalExtension}`;
+        }
+
+        // Configura cabeçalhos de resposta para download binário com o nome customizado
         res.statusCode = 200;
-        res.setHeader('Content-Type', fileBuffer.mimeType);
-        res.setHeader('Content-Disposition', `attachment; filename="arquivo_extraido.${fileBuffer.extension}"`);
+        res.setHeader('Content-Type', fileBuffer.mimeType || 'application/octet-stream');
+        res.setHeader('Content-Disposition', `attachment; filename="${finalFilename}"`);
         res.setHeader('Content-Length', fileBuffer.length);
         
         // Retorna o buffer binário diretamente na resposta
         res.end(fileBuffer);
         
-        console.log(`[Webhook] Sucesso: Arquivo .${fileBuffer.extension} extraído (${(fileBuffer.length/1024).toFixed(2)} KB)`);
+        console.log(`[Webhook] Sucesso: Arquivo "${finalFilename}" extraído (${(fileBuffer.length/1024).toFixed(2)} KB)`);
       } catch (error) {
         console.error(`[Webhook] Erro: ${error.message}`);
         res.statusCode = 400;
