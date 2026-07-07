@@ -49,18 +49,30 @@ const server = http.createServer((req, res) => {
         try {
           const parsed = JSON.parse(body);
           
-          // Caso A: Formato aninhado com Escola.File
-          if (parsed.Escola && parsed.Escola.File) {
-            base64String = parsed.Escola.File.base64 || '';
-            if (parsed.Escola.File.filename) {
-              filename = parsed.Escola.File.filename;
+          // Busca recursiva pelas chaves base64, filename e extension (case-insensitive)
+          const found = {};
+          function search(current) {
+            if (!current || typeof current !== 'object') return;
+            for (const key of Object.keys(current)) {
+              const lowerKey = key.toLowerCase();
+              if (lowerKey === 'base64' && !found.base64) {
+                found.base64 = current[key];
+              } else if ((lowerKey === 'filename' || lowerKey === 'file-name') && !found.filename) {
+                found.filename = current[key];
+              } else if ((lowerKey === 'extension' || lowerKey === 'ext') && !found.extension) {
+                found.extension = current[key];
+              }
+              search(current[key]);
             }
-            if (parsed.Escola.File.extension) {
-              customExtension = parsed.Escola.File.extension.replace(/^\./, '');
-            }
-          } else {
-            // Caso B: Formatos anteriores compatíveis (base64 ou data na raiz)
-            base64String = parsed.base64 || parsed.data || '';
+          }
+          search(parsed);
+
+          base64String = found.base64 || parsed.base64 || parsed.data || '';
+          if (found.filename) {
+            filename = found.filename;
+          }
+          if (found.extension) {
+            customExtension = found.extension.replace(/^\./, '');
           }
         } catch (e) {
           // Se não for JSON, assume que o corpo é o próprio Base64 puro
@@ -91,7 +103,12 @@ const server = http.createServer((req, res) => {
         // Configura cabeçalhos de resposta para download binário com o nome customizado
         res.statusCode = 200;
         res.setHeader('Content-Type', fileBuffer.mimeType || 'application/octet-stream');
-        res.setHeader('Content-Disposition', `attachment; filename="${finalFilename}"`);
+        
+        // Define cabeçalhos de Content-Disposition seguindo múltiplos padrões da RFC e headers alternativos
+        res.setHeader('Content-Disposition', `attachment; filename="${finalFilename}"; filename*=UTF-8''${encodeURIComponent(finalFilename)}`);
+        res.setHeader('X-Filename', finalFilename);
+        res.setHeader('X-File-Name', finalFilename);
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, X-Filename, X-File-Name');
         res.setHeader('Content-Length', fileBuffer.length);
         
         // Retorna o buffer binário diretamente na resposta
