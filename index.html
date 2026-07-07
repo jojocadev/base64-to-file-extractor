@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Extrator Base64 para PDF</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Efeitos de Fundo Luminosos -->
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+
+  <div class="container">
+    <header>
+      <h1>Extrator de Base64 para PDF</h1>
+      <p class="subtitle">Insira uma string Base64 ou suba um arquivo para decodificar e extrair seu PDF</p>
+    </header>
+
+    <div class="input-grid">
+      <!-- Seção do Upload de Arquivos -->
+      <div class="input-section">
+        <label for="fileInput">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Subir Arquivo (.txt, .base64 ou .pdf)
+        </label>
+        <div class="upload-zone" id="uploadZone">
+          <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="48" height="48">
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <path d="M12 18v-6"/>
+            <path d="m9 15 3-3 3 3"/>
+          </svg>
+          <p>Arraste e solte o arquivo aqui ou clique para procurar</p>
+          <span style="font-size: 0.8rem; color: var(--text-secondary);">Aceita arquivos contendo texto Base64 ou arquivos PDF</span>
+          <input type="file" id="fileInput" accept=".txt,.base64,.pdf">
+        </div>
+      </div>
+
+      <!-- Seção de Entrada da String Base64 -->
+      <div class="input-section">
+        <label for="base64Input">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          String Base64 (Texto)
+        </label>
+        <div class="textarea-wrapper">
+          <textarea id="base64Input" placeholder="Cole sua string Base64 aqui (com ou sem o prefixo 'data:application/pdf;base64,')..."></textarea>
+          <div class="textarea-actions">
+            <button class="mini-btn" id="btnLoadSample" title="Carregar Base64 de Exemplo">
+              Exemplo
+            </button>
+            <button class="mini-btn" id="btnCopy" title="Copiar conteúdo">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Copiar
+            </button>
+            <button class="mini-btn" id="btnClear" title="Limpar tudo">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              Limpar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Área de Ação Principal -->
+    <div class="action-area">
+      <button class="btn-extract" id="btnExtract">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 3 4 8 5-5 5 15H2L8 3z"/></svg>
+        Extrair Arquivo
+      </button>
+    </div>
+
+    <!-- Alerta de Erro -->
+    <div class="alert" id="errorAlert">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div>
+        <strong style="display: block; margin-bottom: 0.25rem;">Erro de Validação:</strong>
+        <span id="errorMessage">Descrição do erro aqui...</span>
+      </div>
+    </div>
+
+    <!-- Seção de Resultados (Oculta por padrão) -->
+    <div class="result-section" id="resultSection">
+      <div class="result-header">
+        <div class="success-badge" id="successBadge">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Arquivo Extraído com Sucesso!
+        </div>
+        <div class="info-badge" id="fileInfo">
+          Tamanho: -- KB
+        </div>
+      </div>
+
+      <!-- Preview Multi-formato do Arquivo -->
+      <div class="pdf-preview-container" style="display: flex; justify-content: center; align-items: center; overflow: hidden; background: #111827;">
+        <iframe id="pdfPreview" title="Visualização do PDF" style="width: 100%; height: 100%; border: none; display: none;"></iframe>
+        <img id="imagePreview" alt="Visualização da Imagem" style="display: none; max-width: 90%; max-height: 90%; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);" />
+        <pre id="textPreview" style="display: none; width: 100%; height: 100%; overflow: auto; padding: 1.5rem; background: rgba(0, 0, 0, 0.4); color: #a5b4fc; font-family: 'Courier New', Courier, monospace; font-size: 0.9rem; text-align: left; border-radius: 8px; margin: 0;"></pre>
+        <div id="genericPreview" style="display: none;" class="preview-placeholder">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--text-secondary); margin-bottom: 0.5rem;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          <p style="font-weight: 500;">Pré-visualização indisponível</p>
+          <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Tipo de arquivo não suportado para visualização em tela</span>
+        </div>
+      </div>
+
+      <div style="text-align: center;">
+        <button class="btn-download" id="btnDownload">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Baixar Arquivo
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Desenvolvido com Recursos Nativos &bull; <a href="base64ToPdf.js" target="_blank">Ver Código JavaScript Nativo</a>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
