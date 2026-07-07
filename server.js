@@ -1,6 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const base64ToPdf = require('./base64ToPdf');
 
 const PORT = 3000;
 
@@ -19,46 +20,119 @@ const MIME_TYPES = {
 const server = http.createServer((req, res) => {
   console.log(`${req.method} ${req.url}`);
 
-  // Resolve o caminho do arquivo solicitado
-  let filePath = req.url === '/' ? '/index.html' : req.url;
-  filePath = path.join(__dirname, filePath);
+  // Configura cabeçalhos de CORS para permitir chamadas externas à API/Webhook
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-  // Evita travessia de diretório para fora da pasta de execução
-  if (!filePath.startsWith(__dirname)) {
-    res.statusCode = 403;
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.end('Acesso Negado');
+  // Trata requisições OPTIONS do CORS
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
     return;
   }
 
-  // Verifica se o arquivo existe e o serve
-  fs.access(filePath, fs.constants.F_OK, (err) => {
-    if (err) {
-      res.statusCode = 404;
+  // 1. Trata a rota do Webhook / API de Conversão (POST /webhook ou /api/extract)
+  if (req.method === 'POST' && (req.url === '/webhook' || req.url === '/api/extract')) {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk;
+    });
+    
+    req.on('end', () => {
+      try {
+        let base64String = '';
+        
+        // Tenta parsear como JSON
+        try {
+          const parsed = JSON.parse(body);
+          base64String = parsed.base64 || parsed.data || '';
+        } catch (e) {
+          // Se não for JSON, assume que o corpo é o próprio Base64 puro
+          base64String = body.trim();
+        }
+
+        if (!base64String) {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({ 
+            error: 'Nenhuma string Base64 informada. Envie no formato JSON {"base64": "..."} ou como texto no corpo da requisição.' 
+          }));
+          return;
+        }
+
+        // Decodifica a string usando nossa biblioteca utilitária nativa
+        const fileBuffer = base64ToPdf(base64String);
+
+        // Configura cabeçalhos de resposta para download binário
+        res.statusCode = 200;
+        res.setHeader('Content-Type', fileBuffer.mimeType);
+        res.setHeader('Content-Disposition', `attachment; filename="arquivo_extraido.${fileBuffer.extension}"`);
+        res.setHeader('Content-Length', fileBuffer.length);
+        
+        // Retorna o buffer binário diretamente na resposta
+        res.end(fileBuffer);
+        
+        console.log(`[Webhook] Sucesso: Arquivo .${fileBuffer.extension} extraído (${(fileBuffer.length/1024).toFixed(2)} KB)`);
+      } catch (error) {
+        console.error(`[Webhook] Erro: ${error.message}`);
+        res.statusCode = 400;
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.end(JSON.stringify({ error: error.message }));
+      }
+    });
+    return;
+  }
+
+  // 2. Trata rotas de arquivos estáticos (GET)
+  if (req.method === 'GET') {
+    // Resolve o caminho do arquivo solicitado
+    let filePath = req.url === '/' ? '/index.html' : req.url;
+    filePath = path.join(__dirname, filePath);
+
+    // Evita travessia de diretório para fora da pasta de execução
+    if (!filePath.startsWith(__dirname)) {
+      res.statusCode = 403;
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      res.end('Arquivo Não Encontrado');
+      res.end('Acesso Negado');
       return;
     }
 
-    const ext = path.extname(filePath).toLowerCase();
-    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+    // Verifica se o arquivo existe e o serve
+    fs.access(filePath, fs.constants.F_OK, (err) => {
+      if (err) {
+        res.statusCode = 404;
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.end('Arquivo Não Encontrado');
+        return;
+      }
 
-    res.statusCode = 200;
-    res.setHeader('Content-Type', contentType);
+      const ext = path.extname(filePath).toLowerCase();
+      const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 
-    const stream = fs.createReadStream(filePath);
-    stream.on('error', (streamErr) => {
-      console.error(`Erro ao ler o arquivo: ${streamErr.message}`);
-      res.statusCode = 500;
-      res.end('Erro Interno do Servidor');
+      res.statusCode = 200;
+      res.setHeader('Content-Type', contentType);
+
+      const stream = fs.createReadStream(filePath);
+      stream.on('error', (streamErr) => {
+        console.error(`Erro ao ler o arquivo: ${streamErr.message}`);
+        res.statusCode = 500;
+        res.end('Erro Interno do Servidor');
+      });
+      stream.pipe(res);
     });
-    stream.pipe(res);
-  });
+    return;
+  }
+
+  // Rota padrão se o método for incompatível
+  res.statusCode = 405;
+  res.end('Método Não Permitido');
 });
 
 server.listen(PORT, () => {
   console.log(`\n======================================================`);
   console.log(` Servidor local rodando com sucesso!`);
   console.log(` Acesse em seu navegador: http://localhost:${PORT}`);
+  console.log(` API/Webhook ativo em: http://localhost:${PORT}/webhook`);
   console.log(`======================================================\n`);
 });
