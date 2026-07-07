@@ -358,3 +358,32 @@ btnLoadSample.addEventListener('click', () => {
   cleanResults();
   alertToast('Base64 de teste carregado com sucesso!');
 });
+
+// Configuração dinâmica da URL do Webhook / API em tela
+(() => {
+  const webhookUrlElement = document.getElementById('webhookUrl');
+  const curlPlaceholderText = document.getElementById('curlPlaceholderText');
+  const curlPlaceholderJson = document.getElementById('curlPlaceholderJson');
+  const btnCopyWebhook = document.getElementById('btnCopyWebhook');
+
+  const currentOrigin = window.location.origin;
+  const fullWebhookUrl = `${currentOrigin}/webhook`;
+
+  if (webhookUrlElement) {
+    webhookUrlElement.textContent = fullWebhookUrl;
+  }
+  if (curlPlaceholderText) {
+    curlPlaceholderText.textContent = fullWebhookUrl;
+  }
+  if (curlPlaceholderJson) {
+    curlPlaceholderJson.textContent = fullWebhookUrl;
+  }
+
+  if (btnCopyWebhook) {
+    btnCopyWebhook.addEventListener('click', () => {
+      navigator.clipboard.writeText(fullWebhookUrl)
+        .then(() => alertToast('URL do Webhook copiada!'))
+        .catch(() => alertToast('Erro ao copiar URL.'));
+    });
+  }
+})();
